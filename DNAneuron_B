@@ -1,0 +1,172 @@
+directive simulation {final=20000; plots=[ E0(); B(); L(); H1(); H2(); H3(); A1(); A2(); A3() ]}   
+
+directive simulator deterministic
+directive deterministic {stiff=true}
+directive units{concentration=uM}
+directive compilation infinite
+directive parameters [bOUT=2; Ein=5; AFgateIn=10; backIn=10; rateb=1; tedeg=1; t1b_deg =0.1; NovelB1=10; Ain =  10;  SMFin = 0.5; WAFin = 0.5; SIFin = 0.5; AFFin=1; NdegE = 0; NdegH = 0.05; Hs = 0; kdegB = 0.1; kdegE = 0.1; kdegH = 0.000005]
+
+//// Toehold domain reactivity
+dom ta = {bind=1; unbind=10; colour="green"}   // Inputs
+dom th = {bind=0.001; unbind=10; colour="orange"}  // Weights
+dom tb = {bind=1; unbind=10; colour="#00fbff"}    // State
+
+dom te0 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+dom te1 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+dom te2 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+dom te3 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+dom te4 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+dom te5 = {bind=5; unbind=10; colour="#eb34e8"} // Activation
+
+dom tfsi = {bind=1; unbind=10; colour="black"}    // Fuel for SI
+//// Translator toeholds reactivity
+dom tiwa1 = {bind=1; unbind=10; colour="#ffe000"}  // WA1
+dom tiwa2 = {bind=1; unbind=10; colour="#ffe000"}  // WA2
+dom tiwa3 = {bind=1; unbind=10; colour="#ffe000"}  // WA3
+
+dom tism = {bind=1; unbind=10; colour="blue"}	  // SM
+dom tisi = {bind=1; unbind=10; colour="red"}	  // SI
+
+//// Inputs
+def A1() = <ta^ a1>
+def A2() = <ta^ a2>
+def A3() = <ta^ a3>
+//// Weights
+def H1() = <th^ h1>
+def H2() = <th^ h2>
+def H3() = <th^ h3>
+//// State
+def B() = <tb^ b>
+//// Activation
+def E0() = <te0^ b>
+def E1() = <te1^ b>
+def E2() = <te2^ b>
+def E3() = <te3^ b>
+def E4() = <te4^ b>
+
+//def L() = <b te1^ b>
+//def L() = <b te2^ b>
+//def L() = <b te3^ b>
+//def L() = <b te4^ b>
+def L() = <b te5^ b>
+
+def nE0() = <b te0^>
+def nE1() = <b te1^>
+def nE2() = <b te2^>
+def nE3() = <b te3^>
+def nE4() = <b te4^>
+
+def nB() = <b tb^>
+
+//// Join gate (R1 + R2 <-> T)
+def Join(ta, a, tb, b, tr) = {ta^*}[a tb^]:[b tr^]:[i] 
+//// Fork gate (T <-> P1 + P2)
+def Fork(ta, a, tb, b, tr) = [i]:[ta^ a]:[tb^ b]{tr^*}
+def Fork_WA(ta, a, tb, b, tr) = [i]:[ta^ a]:<b>[tb^ b]{tr^*}
+//// Decay modules
+def degB() = {tb^*}[b]                                 // B removal
+def degH1() = {th^*}[h1]                               // H1 removal
+def degH2() = {th^*}[h2]                               // H2 removal
+def degH3() = {th^*}[h3]                               // H3 removal
+
+//// Weight accumulation: An + Ex <-> Ex + Hn (OLD) mx
+def WA_fuel_mx(an, hn, tiwan, fuel, time) = 
+( fuel Join(ta, an, te5, b, tiwan)  @ time
+| fuel Fork_WA(th, hn, te5, b, tiwan) @ time
+| fuel <hn te5^>  @ time
+| fuel <i th^> @ time
+| fuel <tiwan^ i> @ time
+)
+
+//// Signal modulation: An + Hn <-> Hn + B
+def SM_fuel(an, hn, fuel, time) = 
+( fuel Join(ta, an, th, hn, tism) @ time
+| fuel Fork(tb, b, th, hn, tism) @ time
+| fuel <b th^> @ time
+| fuel <i tb^> @ time
+| fuel <tism^ i> @ time		
+)
+//// Signal integration: I + An <-> An + B - OLD
+def SI_fuel(in, an, fuel, time) = 
+( fuel Join(tfsi, in, ta, an, tisi) @ time
+| fuel  Fork(tb, b, ta, an, tisi) @ time
+| fuel <b ta^> @ time
+| fuel <tfsi^ in> @ time
+| fuel <i tb^> @ time
+| fuel <tisi^ i> @ time
+)
+
+//// Activation function:  B + E -> L (m=5)
+def AF_newE_5(fuel_gate, time) = 
+( fuel_gate {tb^*}[b te0^]:[b tb^]:[b te1^]:[b tb^]:[b te2^]:[b tb^]:[b te3^]:[b tb^]:[b te4^]:[b te5^]<b> @ time
+)
+
+//// Activation function:  B + E -> L (m=4)
+def AF_newE_4(fuel_gate, time) = 
+( fuel_gate {tb^*}[b te0^]:[b tb^]:[b te1^]:[b tb^]:[b te2^]:[b tb^]:[b te3^]:[b te4^]<b> @ time
+)
+
+//// Activation function:  B + E -> L (m=3)
+def AF_newE_3(fuel_gate, time) = 
+( fuel_gate {tb^*}[b te0^]:[b tb^]:[b te1^]:[b tb^]:[b te2^]:[b te3^]<b> @ time
+)
+
+//// Activation function:  B + E -> L (m=2)
+def AF_newE_2(fuel_gate, time) = 
+( fuel_gate {tb^*}[b te0^]:[b tb^]:[b te1^]:[b te2^]<b> @ time
+)
+
+//// Activation function:  B + E -> L (m=1)
+def AF_newE_1(fuel_gate, time) = 
+( fuel_gate {tb^*}[b te0^]:[b te1^]<b> @ time
+)
+
+//// Short example of randomly generated input with frequency bias
+def TemporalCorrelationDetection() = 
+( 0 B()  | B() ->{bOUT}    
+| Ein E0() 
+| Ein E1() 
+| Ein E2()
+| Ein E3() 
+| Ein E4()
+
+| 0 H1() | H1() ->{kdegH}
+| 0 H2() | H2() ->{kdegH} 
+| 0 H3() | H3() ->{kdegH} 
+
+| backIn nE0()
+| backIn nE1()
+| backIn nE2()
+| backIn nE3()
+| backIn nE4()
+
+| backIn nB()
+| 0 L()
+| AF_newE_5(AFgateIn, 0) 
+
+| SM_fuel(a1, h1, 25000, 0) 
+| SI_fuel(i1, a1, 80000, 0)
+| WA_fuel_mx(a1, h1, tiwa1, 10000, 0) 
+
+| SM_fuel(a2, h2, 25000, 0) 
+| SI_fuel(i2, a2, 80000, 0)
+| WA_fuel_mx(a2, h2, tiwa2, 10000, 0)  
+
+| SM_fuel(a3, h3, 25000, 0) 
+| SI_fuel(i3, a3, 80000, 0)
+| WA_fuel_mx(a3, h3, tiwa3, 10000, 0) 
+
+| Ain A1() @ 5623 
+| Ain A2() @ 5633 
+| Ain A1() @ 8318 
+| Ain A2() @ 8328 
+| Ain A1() @ 12691 
+| Ain A2() @ 12701 
+| Ain A3() @ 13335 
+| Ain A1() @ 16757 
+| Ain A2() @ 16767 
+)
+
+// Input signals
+( TemporalCorrelationDetection()
+)
